@@ -10,6 +10,9 @@ jobs:
     <<: *default_job_params
     steps:
       - checkout
+      - restore_cache:
+          keys: 
+            - node-modules-{{ checksum "yarn.lock" }}
       - run: yarn --frozen-lockfile
       - persist_to_workspace:
           # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is 
@@ -18,6 +21,9 @@ jobs:
           # Must be relative path from root
           paths:
             - ./
+      - save_cache:
+          key: node-modules-{{ checksum "yarn.lock" }}
+          paths: node_modules/
   Unit Tests:
     <<: *default_job_params
     steps:
