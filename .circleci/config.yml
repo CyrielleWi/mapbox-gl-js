@@ -1,44 +1,68 @@
 version: 2.1
+workflows:
+    version: 2
+    build-test-and-deploy:
+      jobs:
+        - installation
+        - build&test:
+            requires:
+              - installation
 
 jobs:
-  build:
-    docker:
-    - image: circleci/node:10.16-browsers
-    working_directory: ~/mapbox-gl-js
-    steps:
-      - checkout
-      - run: yarn
-      - run: yarn run lint
-      - run: yarn run lint-docs
-      - run: yarn run lint-css
-      - run: yarn run build-prod-min
-      - run: yarn run build-prod
-      - run: yarn run build-csp
-      - run: yarn run build-dev
-      - run: yarn run build-css
-      - run: yarn run build-style-spec
-      - run: yarn run build-flow-types
-      - run: yarn run test-build
-      - store_artifacts:
-          path: "dist"
-      - store_artifacts:
-          path: "test/release"
-      - run:
-          name: Check bundle size
-          command: |
-            node build/check-bundle-size.js "dist/mapbox-gl.js" "JS"
-            node build/check-bundle-size.js "dist/mapbox-gl.css" "CSS"
-      - run: yarn run test-flow
-      - run: yarn run test-unit
-      - run: yarn run test-render
-      - store_artifacts:
-          path: "test/integration/render-tests/index.html"
-      - run: yarn run test-query
-      - store_test_results:
-          path: test/integration/query-tests
-      - store_artifacts:
-          path: "test/integration/query-tests/index.html"
-      - run: yarn run test-expressions
-      - run:
-          name: Build
-          command: BENCHMARK_VERSION="${CIRCLE_TAG:-$CIRCLE_BRANCH} $(git rev-parse --short=7 HEAD)" yarn run build-benchmarks
+    installation:
+        docker:
+            - image: circleci/node:10.16-browsers
+            working_directory: ~/mapbox-gl-js
+            steps:
+                - checkout
+                - run: yarn
+                - persist_to_workspace:
+                # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is 
+                # taken to be the root directory of the workspace.
+                root: "~/mapbox-gs-gl"
+                # Must be relative path from root
+                paths:
+                    - "./"
+
+    build&test:
+        docker:
+            - image: circleci/node:10.16-browsers
+            working_directory: ~/mapbox-gl-js
+            steps:
+                - attach_workspace:
+                    # Must be absolute path or relative path from working_directory
+                    at: .
+                - run: yarn run lint
+                - run: yarn run lint-docs
+                - run: yarn run lint-css
+                - run: yarn run build-prod-min
+                - run: yarn run build-prod
+                - run: yarn run build-csp
+                - run: yarn run build-dev
+                - run: yarn run build-css
+                - run: yarn run build-style-spec
+                - run: yarn run build-flow-types
+                - run: yarn run test-build
+                - store_artifacts:
+                    path: "dist"
+                - store_artifacts:
+                    path: "test/release"
+                - run:
+                    name: Check bundle size
+                    command: |
+                        node build/check-bundle-size.js "dist/mapbox-gl.js" "JS"
+                        node build/check-bundle-size.js "dist/mapbox-gl.css" "CSS"
+                - run: yarn run test-flow
+                - run: yarn run test-unit
+                - run: yarn run test-render
+                - store_artifacts:
+                    path: "test/integration/render-tests/index.html"
+                - run: yarn run test-query
+                - store_test_results:
+                    path: test/integration/query-tests
+                - store_artifacts:
+                    path: "test/integration/query-tests/index.html"
+                - run: yarn run test-expressions
+                - run:
+                    name: Build
+                    command: BENCHMARK_VERSION="${CIRCLE_TAG:-$CIRCLE_BRANCH} $(git rev-parse --short=7 HEAD)" yarn run build-benchmarks
