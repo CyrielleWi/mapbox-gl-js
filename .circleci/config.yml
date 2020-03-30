@@ -4,7 +4,16 @@ workflows:
   build-test-and-deploy:
     jobs:
       - installation
-      - test-and-build:
+      - unit-tests:
+          requires:
+            - installation
+      - integration-tests:
+          requires:
+            - installation
+      - static-analysis:
+          requires:
+            - installation
+      - build:
           requires:
             - installation
 
@@ -19,12 +28,39 @@ jobs:
       - persist_to_workspace:
       # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is 
       # taken to be the root directory of the workspace.
-          root: ~/mapbox-gs-js
+          root: ~/mapbox-gl-js
           # Must be relative path from root
           paths:
             - ./
 
-  test-and-build:
+  unit-tests:
+    docker:
+      - image: circleci/node:10.16-browsers
+    working_directory: ~/mapbox-gl-js
+    steps:
+      - attach_workspace:
+          # Must be absolute path or relative path from working_directory
+          at: .
+      - run: yarn run test-unit
+
+  integration-tests:
+    docker:
+      - image: circleci/node:10.16-browsers
+    working_directory: ~/mapbox-gl-js
+    steps:
+      - attach_workspace:
+          # Must be absolute path or relative path from working_directory
+          at: .
+      - run: yarn run test-render
+      - store_artifacts:
+          path: "test/integration/render-tests/index.html"
+      - run: yarn run test-query
+      - store_test_results:
+          path: test/integration/query-tests
+      - store_artifacts:
+          path: "test/integration/query-tests/index.html"
+
+  static-analysis:
     docker:
       - image: circleci/node:10.16-browsers
     working_directory: ~/mapbox-gl-js
@@ -35,6 +71,18 @@ jobs:
       - run: yarn run lint
       - run: yarn run lint-docs
       - run: yarn run lint-css
+      - run: yarn run test-flow
+      - run: yarn run test-expressions
+
+
+  build:
+    docker:
+      - image: circleci/node:10.16-browsers
+    working_directory: ~/mapbox-gl-js
+    steps:
+      - attach_workspace:
+          # Must be absolute path or relative path from working_directory
+          at: .
       - run: yarn run build-prod-min
       - run: yarn run build-prod
       - run: yarn run build-csp
@@ -52,17 +100,6 @@ jobs:
           command: |
               node build/check-bundle-size.js "dist/mapbox-gl.js" "JS"
               node build/check-bundle-size.js "dist/mapbox-gl.css" "CSS"
-      - run: yarn run test-flow
-      - run: yarn run test-unit
-      - run: yarn run test-render
-      - store_artifacts:
-          path: "test/integration/render-tests/index.html"
-      - run: yarn run test-query
-      - store_test_results:
-          path: test/integration/query-tests
-      - store_artifacts:
-          path: "test/integration/query-tests/index.html"
-      - run: yarn run test-expressions
       - run:
           name: Build
           command: BENCHMARK_VERSION="${CIRCLE_TAG:-$CIRCLE_BRANCH} $(git rev-parse --short=7 HEAD)" yarn run build-benchmarks
